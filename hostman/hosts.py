@@ -4,8 +4,6 @@ from socket import inet_pton, error, AF_INET, AF_INET6
 # http://stackoverflow.com/questions/1418423/the-hostname-regex
 NAME_PATTERN = re.compile('^(?=.{1,255}$)[0-9A-Za-z](?:(?:[0-9A-Za-z]|-){0,61}[0-9A-Za-z])?(?:\.[0-9A-Za-z](?:(?:[0-9A-Za-z]|-){0,61}[0-9A-Za-z])?)*\.?$')
 
-IN_PATTERN = re.compile('\S+#\S+')
-
 #-------------------------------------------------------------------------------
 # Comment parsing
 
@@ -45,15 +43,15 @@ def parse_line(line):
     com = commented(line).rstrip()
 
     if not com and not unc:
-        return '', [], []
+        return '', [], [], False
 
     if com and not unc:
         parts = com.split()
         if not is_address(parts[0]):
-            return com, [], []
+            return com, [], [], True
 
-        addr, names, _ = parse_line(com)
-        return addr, [], names
+        addr, names, comment, _ = parse_line(com)
+        return addr, names, comment, True
 
     parts = unc.split()
     if len(parts) < 2:
@@ -62,51 +60,40 @@ def parse_line(line):
     
     address = parts[0]
     names = parts[1:]
-    commented_names = com.split()
     
-    # Handle a case like: 8.8.8.8 dns#a dnsb
-    if re.search(IN_PATTERN, line):
-        commented_names = commented_names[1:]
-
-    return address, names, commented_names
+    return address, names, com, False
 
 #-------------------------------------------------------------------------------
-# Line representation
+# Line representations
 
 
 class Line(object):
-    def __init__(self, address, names, commented_names=None,
-                 is_commented=False):
+    def __init__(self, address, names, comment='', is_comment=False):
         self.address = address
         self.names = list(names)
-        #self.comment = comment
-        self.is_commented = is_commented
-        if not commented_names:
-            commented_names = []
-        self.commented_names = commented_names
-        
+        self.comment = comment
+        self.is_comment = is_comment
+
         self.validate()
 
     @classmethod
     def from_line(cls, line):
-        address, names, cnames = parse_line(line)
+        address, names, comment, is_comment = parse_line(line)
 
-        if not address:
+        if not address and not is_comment:
             return Empty()
 
-        if address and not names and not cnames:
+        if address and not names and is_comment:
             return Comment(address)
 
-        is_commented = False
-        if cnames and not names:
-            names = list(cnames)
-            cnames = []
-            is_commented = True
-
-        return cls(address, names, cnames, is_commented)
+        return cls(address, names, comment, is_comment)
 
     def to_string(self):
-        return self.text
+        comment = ' #{}'.format(self.comment) if self.comment else ''
+        return '{}{}\t{}{}'.format('# ' if self.is_comment else '',
+                                   self.address,
+                                   ' '.join(self.names),
+                                   comment)
 
     def validate(self):
         if not is_address(self.address):
