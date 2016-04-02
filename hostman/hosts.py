@@ -1,4 +1,5 @@
 import re
+from collections import defaultdict
 from socket import inet_pton, error, AF_INET, AF_INET6
 
 # http://stackoverflow.com/questions/1418423/the-hostname-regex
@@ -133,16 +134,95 @@ class Comment(object):
 class HostsFile(object):
     def __init__(self, lines):
         self.lines = lines
+        self._update()
         self.validate()
+
+    def _update(self):
+        self.hosts = {}
+        self.chosts = {}
+        self.addrs = defaultdict(set)
+        self.caddrs = defaultdict(set)
+
+        for line in filter(lambda: not line.is_comment, self.lines):
+            self.addrs[line.address].add(line)
+            for host in line.names:
+                self.hosts[host] = line
+
+        for line in filter(lambda: line.is_comment, self.lines):
+            self.caddrs[line.address].add(line)
+            for host in line.names:
+                self.chosts[host] = line
 
     @classmethod
     def from_path(cls, path):
         with open(path, 'rt') as f:
-            txt = f.read()
+            return cls.from_text(f.read())
 
-        lines = txt.split('\n')
-        objs = [Line.from_line(line) for line in lines]
-        return cls(objs)
+    @classmethod
+    def from_text(cls, text):
+        lines = text.split('\n')
+        return cls([Line.from_line(line) for line in lines])
+
+    def to_path(self, path):
+        with open(path, 'wt') as f:
+            f.write(self.to_text())
+
+    def to_text(self):
+        lines = [line.to_string() for line in self.lines]
+        return '\n'.join(lines)
+
+    def query_host(self, name):
+        res = self.hosts.get(name, None)
+        if res is not None:
+            res = res.address
+        return res
+
+    def query_address(self, address):
+        res = self.addrs[address]
+        if res:
+            ret = []
+            for line in res:
+                ret += line.names
+            return ret
+        return res
+
+    def comment_host(self, name):
+        pass
+
+    def comment_address(self, address):
+        for line in self.addrs[address]:
+            line.is_comment = True
+        self._update()
+
+    def uncomment_host(self, name):
+        pass
+
+    def uncomment_address(self, address):
+        for line in self.caddrs[address]:
+            line.is_comment = False
+        self._update()
+
+    def update_address(self, old_address, new_address):
+        pass
+
+    def set_host(self, name, address):
+        pass
+
+    def remove_host(self, name, address):
+        pass
+
+    def remove_address(self, address, comments=False):
+        for line in self.addrs[address]:
+            self.lines.remove(line)
+        if comments:
+            for line in self.caddrs[address]:
+                self.lines.remove(line)
+
+    def update_host(self, name, address):
+        pass
+
+    def update(self, other, comments=False):
+        pass
 
     def validate(self):
         for line in self.lines:
@@ -150,5 +230,6 @@ class HostsFile(object):
                 raise TypeError("Attribute 'lines' is not list of Line objects")
             line.validate()
 
+        # TODO: add warning for repeated hosts
 
 #-------------------------------------------------------------------------------
