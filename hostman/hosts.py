@@ -187,7 +187,7 @@ class HostsFile(object):
         return res
 
     def comment_host(self, name):
-        pass
+        self._update()
 
     def comment_address(self, address):
         for line in self.addrs[address]:
@@ -195,21 +195,12 @@ class HostsFile(object):
         self._update()
 
     def uncomment_host(self, name):
-        pass
+        self._update()
 
     def uncomment_address(self, address):
         for line in self.caddrs[address]:
             line.is_comment = False
         self._update()
-
-    def update_address(self, old_address, new_address):
-        pass
-
-    def set_host(self, name, address):
-        pass
-
-    def remove_host(self, name, address):
-        pass
 
     def remove_address(self, address, comments=False):
         for line in self.addrs[address]:
@@ -217,12 +208,22 @@ class HostsFile(object):
         if comments:
             for line in self.caddrs[address]:
                 self.lines.remove(line)
+        self._update()
+                
+    def update_address(self, old_address, new_address):
+        self._update()
+
+    def set_host(self, name, address):
+        self._update()
+
+    def remove_host(self, name, address):
+        self._update()
 
     def update_host(self, name, address):
-        pass
+        self._update()
 
     def update(self, other, comments=False):
-        pass
+        self._update()
 
     def validate(self):
         for line in self.lines:
