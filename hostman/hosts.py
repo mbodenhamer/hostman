@@ -1,6 +1,7 @@
 import re
 from syn.five import STR
 from syn.type import List
+from syn.base_utils import implies
 from syn.base import Base, Attr, init_hook
 from collections import defaultdict
 from socket import inet_pton, error, AF_INET, AF_INET6
@@ -109,7 +110,8 @@ class Line(Base):
                   names = Attr(List(STR), doc='A list of hostnames'),
                   comment = Attr(Comment, '', "Content of this line's comment"),
                   is_comment = Attr(bool, False, 'True if this line is '
-                                    'completely a comment'))
+                                    'completely a comment'),
+                  was_made_comment = Attr(bool, False, internal=True))
     _opts = dict(init_validate = True,
                  coerce_args = True,
                  args = ('address', 'names', 'comment', 'is_comment'))
@@ -126,16 +128,40 @@ class Line(Base):
 
         return cls(address, names, Comment(comment), is_comment)
 
+    def _comment_check(self):
+        if self.names:
+            if self.was_made_comment and self.is_comment:
+                self.is_comment = False
+                self.was_made_comment = False
+            
+        if not self.names:
+            self.is_comment = True
+            self.was_made_comment = True
+        
+
+    def add_host(self, name):
+        if name not in self.names:
+            self.names.append(name)
+        self._comment_check()
+
     def is_host_commented(self, name):
+        if name in self.names:
+            return False
         return name in self.comment.names
 
     def comment_host(self, name):
         self.comment.add_name(name)
         self.names.remove(name)
+        self._comment_check()
+
+    def remove_host(self, name):
+        self.names.remove(name)
+        self._comment_check()
 
     def uncomment_host(self, name):
         self.comment.remove_name(name)
         self.names.append(name)
+        self._comment_check()
 
     def to_string(self):
         comment = self.comment.to_string()
@@ -151,7 +177,7 @@ class Line(Base):
         if not is_address(self.address):
             raise ValueError("Attribute 'address' must be valid IP address")
         
-        if not len(self.names) >= 1:
+        if not len(self.names) >= 1 and not self.is_comment:
             raise ValueError("Attribute 'names' must have at least 1 member")
 
         for name in self.names:
@@ -251,12 +277,16 @@ class HostsFile(Base):
         self.validate()
 
     def set_host(self, name, address):
+        line = self.hosts.get(name, Line(address, [name]))
+        if line not in self.lines:
+            self.lines.append(line)
         self._update()
 
     def remove_host(self, name, address=None):
+        self.hosts[name].remove
         self._update()
 
-    def merge(self, other, merge_comments=False):
+    def merge(self, other):
         self._update()
 
     def validate(self):

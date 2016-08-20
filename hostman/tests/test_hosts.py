@@ -84,6 +84,7 @@ def test_line_representations():
     assert l.address == '8.8.8.8'
     assert l.names == ['dns']
     assert l.comment.text == '1 dns2'
+    assert l.comment.names == ['1', 'dns2']
     assert l.is_comment is False
     assert l.to_string() == '8.8.8.8\tdns #1 dns2'
 
@@ -107,9 +108,44 @@ def test_line_representations():
 
     assert_raises(ValueError, Line.from_line, 'abc foo bar')
     assert_raises(ValueError, Line.from_line, '8.8.8.8 dns?')
+    assert_raises(ValueError, Line.from_line, '8.8.8.8')
 
     l.names = []
+    l.validate()
+    l.is_comment = False
     assert_raises(ValueError, l.validate)
+
+    assert Empty().to_string() == ''
+
+    c = Comment('abc def')
+    assert c.to_string() == '#abc def'
+    c.add_name('ghi')
+    assert c.to_string() == '#abc def ghi'
+    c.remove_name('def')
+    assert c.to_string() == '#abc ghi'
+
+    l = Line.from_line('8.8.8.8 abc def #foo bar')
+    assert not l.is_host_commented('abc')
+    assert not l.is_host_commented('def')
+    assert not l.is_host_commented('ghi')
+    assert l.is_host_commented('foo')
+    assert l.is_host_commented('bar')
+
+    assert l.to_string() == '8.8.8.8\tabc def #foo bar'
+    l.uncomment_host('bar')
+    assert l.to_string() == '8.8.8.8\tabc def bar #foo'
+    l.uncomment_host('foo')
+    assert l.to_string() == '8.8.8.8\tabc def bar foo'
+    l.comment_host('abc')
+    assert l.to_string() == '8.8.8.8\tdef bar foo #abc'
+    l.remove_host('def')
+    assert l.to_string() == '8.8.8.8\tbar foo #abc'
+    l.remove_host('bar')
+    assert l.to_string() == '8.8.8.8\tfoo #abc'
+    l.comment_host('foo')
+    assert l.to_string() == '# 8.8.8.8\t #abc foo'
+    l.add_host('def')
+    assert l.to_string() == '8.8.8.8\tdef #abc foo'
 
 #-------------------------------------------------------------------------------
 # Hosts file representation
