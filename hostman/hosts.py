@@ -278,6 +278,7 @@ class HostsFile(Base):
 
     def set_host(self, name, address):
         line = self.hosts.get(name, Line(address, [name]))
+        line.add_host(name)
         if line not in self.lines:
             self.lines.append(line)
         self._update()
@@ -286,7 +287,27 @@ class HostsFile(Base):
         self.hosts[name].remove
         self._update()
 
-    def merge(self, other):
+    def merge(self, other, merge_comments=True):
+        for oline in other:
+            lines = [line for line in self.line 
+                     if line.address == other.address]
+            if not lines:
+                self.lines.append(oline)
+            else:
+                old_names = []
+                for name in oline.names:
+                    if any(name in line.names for line in lines):
+                        old_names.append(name)
+                for name in old_names:
+                    oline.names.remove(name)
+
+                for name in oline.names:
+                    self.set_host(name, oline.address)
+
+                if merge_comments:
+                    self.addrs[oline.address][0].comment.names.extend(
+                        oline.comment.names)
+
         self._update()
 
     def validate(self):
