@@ -1,4 +1,7 @@
 import re
+from syn.five import STR
+from syn.type import List
+from syn.base import Base, Attr
 from collections import defaultdict
 from socket import inet_pton, error, AF_INET, AF_INET6
 
@@ -40,6 +43,9 @@ def is_name(s):
 # Line parsing
 
 def parse_line(line):
+    '''Returns address, names, comment, is_comment (see Line class).
+    '''
+
     unc = uncommented(line).lstrip()
     com = commented(line).rstrip()
 
@@ -68,15 +74,16 @@ def parse_line(line):
 # Line representations
 
 
-class Line(object):
-    def __init__(self, address, names, comment='', is_comment=False):
-        self.address = address
-        self.names = list(names)
-        self.comment = comment
-        self.is_comment = is_comment
-
-        self.validate()
-
+class Line(Base):
+    _attrs = dict(address = Attr(STR, doc='The IP address'),
+                  names = Attr(List(STR), doc='A list of hostnames'),
+                  comment = Attr(STR, '', "Content of this line's comment"),
+                  is_comment = Attr(bool, False, 'True if this line is '
+                                    'completely a comment'))
+    _opts = dict(init_validate = True,
+                 coerce_args = True,
+                 args = ('address', 'names', 'comment', 'is_comment'))
+    
     @classmethod
     def from_line(cls, line):
         address, names, comment, is_comment = parse_line(line)
@@ -97,6 +104,8 @@ class Line(object):
                                    comment)
 
     def validate(self):
+        super(Line, self).validate()
+
         if not is_address(self.address):
             raise ValueError("Attribute 'address' must be valid IP address")
         
@@ -108,23 +117,17 @@ class Line(object):
                 raise ValueError("Invalid hostname: {}".format(name))
 
 
-class Empty(object):
+class Empty(Base):
     def to_string(self):
         return ''
 
-    def validate(self):
-        pass
 
-
-class Comment(object):
-    def __init__(self, text):
-        self.text = text
+class Comment(Base):
+    _attrs = dict(text = Attr(str, doc='Text of the comment'))
+    _opts = dict(args = ('text',))
 
     def to_string(self):
         return '#{}'.format(self.text)
-
-    def validate(self):
-        pass
 
 
 #-------------------------------------------------------------------------------
@@ -231,6 +234,5 @@ class HostsFile(object):
                 raise TypeError("Attribute 'lines' is not list of Line objects")
             line.validate()
 
-        # TODO: add warning for repeated hosts
 
 #-------------------------------------------------------------------------------
