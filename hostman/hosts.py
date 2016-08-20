@@ -1,7 +1,7 @@
 import re
 from syn.five import STR
 from syn.type import List
-from syn.base import Base, Attr
+from syn.base import Base, Attr, init_hook
 from collections import defaultdict
 from socket import inet_pton, error, AF_INET, AF_INET6
 
@@ -134,12 +134,12 @@ class Comment(Base):
 # Hosts file representation
 
 
-class HostsFile(object):
-    def __init__(self, lines):
-        self.lines = lines
-        self._update()
-        self.validate()
+class HostsFile(Base):
+    _attrs = dict(lines = Attr(List((Line, Empty, Comment))))
+    _opts = dict(init_validate = True,
+                 args = ('lines',))
 
+    @init_hook
     def _update(self):
         self.hosts = {}
         self.chosts = {}
@@ -229,9 +229,9 @@ class HostsFile(object):
         self._update()
 
     def validate(self):
+        super(HostsFile, self).validate()
+
         for line in self.lines:
-            if not isinstance(line, (Line, Empty, Comment)):
-                raise TypeError("Attribute 'lines' is not list of Line objects")
             line.validate()
 
 
