@@ -75,7 +75,7 @@ def test_line_representations():
     assert isinstance(l, Line)
     assert l.address == '8.8.8.8'
     assert l.names == ['dns1', 'dns2']
-    assert l.comment == ''
+    assert l.comment == Comment()
     assert l.is_comment is False
     assert l.to_string() == '8.8.8.8\tdns1 dns2'
 
@@ -83,7 +83,7 @@ def test_line_representations():
     assert isinstance(l, Line)
     assert l.address == '8.8.8.8'
     assert l.names == ['dns']
-    assert l.comment == '1 dns2'
+    assert l.comment.text == '1 dns2'
     assert l.is_comment is False
     assert l.to_string() == '8.8.8.8\tdns #1 dns2'
 
@@ -93,7 +93,7 @@ def test_line_representations():
     assert isinstance(l, Line)
     assert l.address == '8.8.8.8'
     assert l.names == ['dns1', 'dns2']
-    assert l.comment == ''
+    assert l.comment.text == ''
     assert l.is_comment is True
     assert l.to_string() == '# 8.8.8.8\tdns1 dns2'
 
@@ -101,7 +101,7 @@ def test_line_representations():
     assert isinstance(l, Line)
     assert l.address == '8.8.8.8'
     assert l.names == ['dns1']
-    assert l.comment == ' dns2'
+    assert l.comment.text == ' dns2'
     assert l.is_comment is True
     assert l.to_string() == '# 8.8.8.8\tdns1 # dns2'
 

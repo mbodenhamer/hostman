@@ -74,10 +74,40 @@ def parse_line(line):
 # Line representations
 
 
+class Empty(Base):
+    def to_string(self):
+        return ''
+
+
+class Comment(Base):
+    _attrs = dict(text = Attr(str, '', doc='Text of the comment'))
+    _opts = dict(args = ('text',))
+
+    @init_hook
+    def _update_names(self):
+        self.names = self.text.split()
+
+    def _update_text(self):
+        self.text = ' '.join(self.names)
+
+    def add_name(self, name):
+        self.names.append(name)
+        self._update_text()
+
+    def remove_name(self, name):
+        self.names.remove(name)
+        self._update_text()
+
+    def to_string(self):
+        if not self.text:
+            return ''
+        return '#{}'.format(self.text)
+
+
 class Line(Base):
     _attrs = dict(address = Attr(STR, doc='The IP address'),
                   names = Attr(List(STR), doc='A list of hostnames'),
-                  comment = Attr(STR, '', "Content of this line's comment"),
+                  comment = Attr(Comment, '', "Content of this line's comment"),
                   is_comment = Attr(bool, False, 'True if this line is '
                                     'completely a comment'))
     _opts = dict(init_validate = True,
@@ -94,10 +124,22 @@ class Line(Base):
         if address and not names and is_comment:
             return Comment(address)
 
-        return cls(address, names, comment, is_comment)
+        return cls(address, names, Comment(comment), is_comment)
+
+    def is_host_commented(self, name):
+        return name in self.comment.names
+
+    def comment_host(self, name):
+        self.comment.add_name(name)
+        self.names.remove(name)
+
+    def uncomment_host(self, name):
+        self.comment.remove_name(name)
+        self.names.append(name)
 
     def to_string(self):
-        comment = ' #{}'.format(self.comment) if self.comment else ''
+        comment = self.comment.to_string()
+        comment = ' ' + comment if comment else ''
         return '{}{}\t{}{}'.format('# ' if self.is_comment else '',
                                    self.address,
                                    ' '.join(self.names),
@@ -115,19 +157,6 @@ class Line(Base):
         for name in self.names:
             if not is_name(name):
                 raise ValueError("Invalid hostname: {}".format(name))
-
-
-class Empty(Base):
-    def to_string(self):
-        return ''
-
-
-class Comment(Base):
-    _attrs = dict(text = Attr(str, doc='Text of the comment'))
-    _opts = dict(args = ('text',))
-
-    def to_string(self):
-        return '#{}'.format(self.text)
 
 
 #-------------------------------------------------------------------------------
@@ -157,22 +186,20 @@ class HostsFile(Base):
                 self.chosts[host] = line
 
     @classmethod
-    def from_path(cls, path):
-        with open(path, 'rt') as f:
-            return cls.from_text(f.read())
-
-    @classmethod
     def from_text(cls, text):
         lines = text.split('\n')
         return cls([Line.from_line(line) for line in lines])
 
-    def to_path(self, path):
-        with open(path, 'wt') as f:
-            f.write(self.to_text())
+    @classmethod
+    def read(cls, fil):
+        return cls.from_text(fil.read())
 
     def to_text(self):
         lines = [line.to_string() for line in self.lines]
         return '\n'.join(lines)
+
+    def write(self, fil):
+        fil.write(self.to_text())
 
     def query_host(self, name):
         res = self.hosts.get(name, None)
@@ -190,6 +217,7 @@ class HostsFile(Base):
         return res
 
     def comment_host(self, name):
+        self.hosts[name].comment_host(name)
         self._update()
 
     def comment_address(self, address):
@@ -198,6 +226,7 @@ class HostsFile(Base):
         self._update()
 
     def uncomment_host(self, name):
+        self.chosts[name].uncomment_host(name)
         self._update()
 
     def uncomment_address(self, address):
@@ -214,18 +243,20 @@ class HostsFile(Base):
         self._update()
                 
     def update_address(self, old_address, new_address):
+        for line in self.addrs[old_address]:
+            line.address = new_address
+        for line in self.caddrs[old_address]:
+            line.address = new_address
         self._update()
+        self.validate()
 
     def set_host(self, name, address):
         self._update()
 
-    def remove_host(self, name, address):
+    def remove_host(self, name, address=None):
         self._update()
 
-    def update_host(self, name, address):
-        self._update()
-
-    def update(self, other, comments=False):
+    def merge(self, other, merge_comments=False):
         self._update()
 
     def validate(self):
